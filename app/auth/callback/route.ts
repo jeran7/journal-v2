@@ -2,7 +2,7 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
-import { serverUserProfileService } from "@/lib/supabase/user-profile-service"
+import { routeHandlerUserProfileService } from "@/lib/supabase/route-handler-service"
 
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url)
@@ -20,18 +20,18 @@ export async function GET(request: NextRequest) {
 
     if (!error && session) {
       // Check if user profile exists, if not create one
-      const { data: profile } = await serverUserProfileService.getUserProfileById(session.user.id)
+      const { data: profile } = await routeHandlerUserProfileService.getUserProfileById(session.user.id)
 
       if (!profile) {
         // Create a new user profile
         const userData = session.user.user_metadata || {}
-        await serverUserProfileService.createUserProfile(session.user.id, {
+        await routeHandlerUserProfileService.createUserProfile(session.user.id, {
           full_name: userData.full_name || userData.name,
           avatar_url: userData.avatar_url,
         })
 
         // Log the security event
-        await serverUserProfileService.logSecurityEvent(
+        await routeHandlerUserProfileService.logSecurityEvent(
           session.user.id,
           "account_created",
           request.headers.get("x-forwarded-for") || "unknown",
@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
       }
 
       // Log the login event
-      await serverUserProfileService.logSecurityEvent(
+      await routeHandlerUserProfileService.logSecurityEvent(
         session.user.id,
         "login",
         request.headers.get("x-forwarded-for") || "unknown",
