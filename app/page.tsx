@@ -1,155 +1,221 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import Link from "next/link"
-import Image from "next/image"
-import { getSupabaseClient } from "@/lib/supabase/supabase-client"
+import { ArrowDown, ArrowUp, DollarSign, Percent, TrendingUp } from "lucide-react"
+import { GlassCard } from "@/components/ui/glass-card"
+import { AnimatedNumber } from "@/components/ui/animated-number"
+import { EquityChart } from "@/components/ui/equity-chart"
+import { Header } from "@/components/navigation/header"
+import { Sidebar } from "@/components/navigation/sidebar"
 
-export default function HomePage() {
-  const router = useRouter()
-  const [isLoading, setIsLoading] = useState(true)
+// Mock data for the dashboard
+const equityData = [
+  { date: "Jan", equity: 10000 },
+  { date: "Feb", equity: 12000 },
+  { date: "Mar", equity: 11500 },
+  { date: "Apr", equity: 13500 },
+  { date: "May", equity: 15000 },
+  { date: "Jun", equity: 14000 },
+  { date: "Jul", equity: 16500 },
+  { date: "Aug", equity: 18000 },
+  { date: "Sep", equity: 17500 },
+  { date: "Oct", equity: 19500 },
+  { date: "Nov", equity: 21000 },
+  { date: "Dec", equity: 25000 },
+]
 
-  useEffect(() => {
-    async function checkAuth() {
-      const supabase = getSupabaseClient()
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
+const recentTrades = [
+  {
+    id: 1,
+    symbol: "AAPL",
+    type: "Long",
+    entry: 175.23,
+    exit: 182.67,
+    pnl: 7.44,
+    pnlPercent: 4.25,
+    date: "2023-12-15",
+  },
+  {
+    id: 2,
+    symbol: "MSFT",
+    type: "Long",
+    entry: 340.12,
+    exit: 352.45,
+    pnl: 12.33,
+    pnlPercent: 3.62,
+    date: "2023-12-14",
+  },
+  {
+    id: 3,
+    symbol: "TSLA",
+    type: "Short",
+    entry: 245.67,
+    exit: 238.21,
+    pnl: 7.46,
+    pnlPercent: 3.04,
+    date: "2023-12-13",
+  },
+  {
+    id: 4,
+    symbol: "NVDA",
+    type: "Long",
+    entry: 465.23,
+    exit: 452.1,
+    pnl: -13.13,
+    pnlPercent: -2.82,
+    date: "2023-12-12",
+  },
+  {
+    id: 5,
+    symbol: "META",
+    type: "Short",
+    entry: 320.45,
+    exit: 315.2,
+    pnl: 5.25,
+    pnlPercent: 1.64,
+    date: "2023-12-11",
+  },
+]
 
-      // If authenticated, redirect to dashboard
-      if (session) {
-        router.push("/dashboard")
-      } else {
-        setIsLoading(false)
-      }
-    }
+export default function Dashboard() {
+  // Calculate summary metrics
+  const totalPnL = recentTrades.reduce((sum, trade) => sum + trade.pnl, 0)
+  const winRate = (recentTrades.filter((trade) => trade.pnl > 0).length / recentTrades.length) * 100
+  const averagePnL = totalPnL / recentTrades.length
 
-    checkAuth()
-  }, [router])
-
-  if (isLoading) {
-    return <div className="flex justify-center items-center min-h-screen">Loading...</div>
-  }
+  // Pre-calculate formatted values instead of passing formatting functions
+  const formattedTotalPnL = `$${totalPnL.toFixed(2)}`
+  const formattedWinRate = `${winRate.toFixed(1)}%`
+  const formattedAveragePnL = `$${averagePnL.toFixed(2)}`
 
   return (
-    <div className="flex flex-col min-h-[calc(100vh-3.5rem)]">
-      <section className="w-full py-12 md:py-24 lg:py-32 xl:py-48">
-        <div className="container px-4 md:px-6">
-          <div className="grid gap-6 lg:grid-cols-[1fr_400px] lg:gap-12 xl:grid-cols-[1fr_600px]">
-            <div className="flex flex-col justify-center space-y-4">
-              <div className="space-y-2">
-                <h1 className="text-3xl font-bold tracking-tighter sm:text-5xl xl:text-6xl/none">
-                  Master Your Trading Journey
-                </h1>
-                <p className="max-w-[600px] text-muted-foreground md:text-xl">
-                  Track, analyze, and improve your trading performance with our comprehensive trading journal.
-                </p>
-              </div>
-              <div className="flex flex-col gap-2 min-[400px]:flex-row">
-                <Button asChild size="lg">
-                  <Link href="/auth/register">Get Started</Link>
-                </Button>
-                <Button asChild variant="outline" size="lg">
-                  <Link href="/auth/login">Sign In</Link>
-                </Button>
-              </div>
-            </div>
-            <div className="flex items-center justify-center">
-              <Image
-                src="/stock-market-analysis.png"
-                alt="Trading Journal Dashboard"
-                width={600}
-                height={400}
-                className="rounded-lg object-cover"
-              />
-            </div>
-          </div>
-        </div>
-      </section>
+    <div className="flex h-screen overflow-hidden">
+      <Sidebar className="hidden md:flex" />
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <Header />
+        <main className="flex-1 overflow-auto p-4 md:p-6">
+          <div className="grid gap-6">
+            <h1 className="text-3xl font-bold tracking-tight font-sf-pro">Dashboard</h1>
 
-      <section className="w-full py-12 md:py-24 lg:py-32 bg-muted/40">
-        <div className="container px-4 md:px-6">
-          <div className="flex flex-col items-center justify-center space-y-4 text-center">
-            <div className="space-y-2">
-              <h2 className="text-3xl font-bold tracking-tighter md:text-4xl">Features</h2>
-              <p className="max-w-[900px] text-muted-foreground md:text-xl">
-                Everything you need to become a better trader
-              </p>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 mt-8">
-            <div className="flex flex-col items-center space-y-2 p-6 bg-background rounded-lg shadow-sm">
-              <div className="p-2 bg-primary/10 rounded-full">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="h-6 w-6 text-primary"
-                >
-                  <path d="M3 3v18h18" />
-                  <path d="m19 9-5 5-4-4-3 3" />
-                </svg>
-              </div>
-              <h3 className="text-xl font-bold">Advanced Analytics</h3>
-              <p className="text-muted-foreground text-center">
-                Gain insights into your trading performance with detailed analytics and reports.
-              </p>
-            </div>
-            <div className="flex flex-col items-center space-y-2 p-6 bg-background rounded-lg shadow-sm">
-              <div className="p-2 bg-primary/10 rounded-full">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="h-6 w-6 text-primary"
-                >
-                  <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-                  <polyline points="14 2 14 8 20 8" />
-                  <path d="M16 13H8" />
-                  <path d="M16 17H8" />
-                  <path d="M10 9H8" />
-                </svg>
-              </div>
-              <h3 className="text-xl font-bold">Trading Journal</h3>
-              <p className="text-muted-foreground text-center">
-                Document your trades, thoughts, and lessons learned to improve your decision-making.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
+            <div className="grid gap-6 md:grid-cols-3">
+              <GlassCard className="flex flex-col gap-2">
+                <div className="flex items-center text-sm text-muted-foreground">
+                  <DollarSign className="mr-1 h-4 w-4" />
+                  <span>Total P&L</span>
+                </div>
+                <div className="text-2xl font-bold">
+                  <AnimatedNumber value={totalPnL} formatValue={(val) => `$${val.toFixed(2)}`} />
+                </div>
+                <div className="flex items-center text-xs">
+                  {totalPnL > 0 ? (
+                    <>
+                      <ArrowUp className="mr-1 h-3 w-3 text-profit" />
+                      <span className="text-profit">Up from last month</span>
+                    </>
+                  ) : (
+                    <>
+                      <ArrowDown className="mr-1 h-3 w-3 text-loss" />
+                      <span className="text-loss">Down from last month</span>
+                    </>
+                  )}
+                </div>
+              </GlassCard>
 
-      <section className="w-full py-12 md:py-24 lg:py-32">
-        <div className="container px-4 md:px-6">
-          <div className="flex flex-col items-center justify-center space-y-4 text-center">
-            <div className="space-y-2">
-              <h2 className="text-3xl font-bold tracking-tighter md:text-4xl">Ready to improve your trading?</h2>
-              <p className="max-w-[600px] text-muted-foreground md:text-xl">
-                Join thousands of traders who are taking their trading to the next level.
-              </p>
+              <GlassCard className="flex flex-col gap-2">
+                <div className="flex items-center text-sm text-muted-foreground">
+                  <Percent className="mr-1 h-4 w-4" />
+                  <span>Win Rate</span>
+                </div>
+                <div className="text-2xl font-bold">
+                  <AnimatedNumber value={winRate} formatValue={(val) => `${val.toFixed(1)}%`} />
+                </div>
+                <div className="flex items-center text-xs">
+                  <ArrowUp className="mr-1 h-3 w-3 text-profit" />
+                  <span className="text-profit">5.2% increase</span>
+                </div>
+              </GlassCard>
+
+              <GlassCard className="flex flex-col gap-2">
+                <div className="flex items-center text-sm text-muted-foreground">
+                  <TrendingUp className="mr-1 h-4 w-4" />
+                  <span>Average P&L</span>
+                </div>
+                <div className="text-2xl font-bold">
+                  <AnimatedNumber value={averagePnL} formatValue={(val) => `$${val.toFixed(2)}`} />
+                </div>
+                <div className="flex items-center text-xs">
+                  <ArrowUp className="mr-1 h-3 w-3 text-profit" />
+                  <span className="text-profit">Improving</span>
+                </div>
+              </GlassCard>
             </div>
-            <div className="flex flex-col gap-2 min-[400px]:flex-row">
-              <Button asChild size="lg">
-                <Link href="/auth/register">Get Started</Link>
-              </Button>
+
+            <GlassCard>
+              <h2 className="mb-4 text-xl font-semibold font-sf-pro">Equity Curve</h2>
+              <EquityChart data={equityData} />
+            </GlassCard>
+
+            <div className="grid gap-6 md:grid-cols-2">
+              <GlassCard>
+                <h2 className="mb-4 text-xl font-semibold font-sf-pro">Recent Trades</h2>
+                <div className="space-y-4">
+                  {recentTrades.slice(0, 4).map((trade) => (
+                    <div
+                      key={trade.id}
+                      className="flex items-center justify-between border-b border-border pb-2 last:border-0"
+                    >
+                      <div className="flex items-center gap-2">
+                        <div
+                          className={`flex h-8 w-8 items-center justify-center rounded-full ${trade.type === "Long" ? "bg-profit/20" : "bg-loss/20"}`}
+                        >
+                          {trade.type === "Long" ? (
+                            <ArrowUp className="h-4 w-4 text-profit" />
+                          ) : (
+                            <ArrowDown className="h-4 w-4 text-loss" />
+                          )}
+                        </div>
+                        <div>
+                          <div className="font-medium">{trade.symbol}</div>
+                          <div className="text-xs text-muted-foreground">{trade.date}</div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className={`font-medium ${trade.pnl > 0 ? "text-profit" : "text-loss"}`}>
+                          {trade.pnl > 0 ? "+" : ""}
+                          {trade.pnl.toFixed(2)}
+                        </div>
+                        <div className={`text-xs ${trade.pnl > 0 ? "text-profit" : "text-loss"}`}>
+                          {trade.pnl > 0 ? "+" : ""}
+                          {trade.pnlPercent.toFixed(2)}%
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </GlassCard>
+
+              <GlassCard>
+                <h2 className="mb-4 text-xl font-semibold font-sf-pro">Performance Insights</h2>
+                <div className="space-y-4">
+                  <div className="rounded-lg bg-accent/50 p-3">
+                    <h3 className="font-medium">Win Streak: 3 Trades</h3>
+                    <p className="text-sm text-muted-foreground">You're on a winning streak! Keep up the good work.</p>
+                  </div>
+                  <div className="rounded-lg bg-accent/50 p-3">
+                    <h3 className="font-medium">Best Performing: AAPL</h3>
+                    <p className="text-sm text-muted-foreground">Your trades on AAPL have a 78% win rate.</p>
+                  </div>
+                  <div className="rounded-lg bg-accent/50 p-3">
+                    <h3 className="font-medium">Risk Management</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Your average risk:reward ratio is 1:2.5, which is excellent.
+                    </p>
+                  </div>
+                </div>
+              </GlassCard>
             </div>
           </div>
-        </div>
-      </section>
+        </main>
+      </div>
     </div>
   )
 }

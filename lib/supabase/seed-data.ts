@@ -1,594 +1,453 @@
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
-import type { Database } from "@/types/supabase-types"
+"use client"
 
-export async function seedMarkets() {
-  const supabase = createServerComponentClient<Database>({ cookies })
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import type { Timeframe } from "./price-data-service"
+import { generatePriceData } from "./seed-utils"
 
-  // Check if markets already exist
-  const { data: existingMarkets } = await supabase.from("markets").select("id").limit(1)
+// Seed the database with sample data
+export async function seedDatabase(
+  progressCallback?: (progress: { symbol: string; timeframe: string; current: number; total: number }) => void,
+) {
+  const supabase = createClientComponentClient()
 
-  if (existingMarkets && existingMarkets.length > 0) {
-    console.log("Markets already seeded")
-    return
-  }
+  // Define symbols and timeframes to seed
+  const symbols = ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "NVDA", "SPY", "QQQ", "BTC", "ETH"]
+  const timeframes: Timeframe[] = ["1m", "5m", "15m", "1h", "4h", "1D", "1W"]
 
-  // Seed markets
-  const markets = [
-    {
-      name: "NYSE",
-      description: "New York Stock Exchange",
-      country: "USA",
-      timezone: "America/New_York",
-      open_time: "09:30:00",
-      close_time: "16:00:00",
-      is_active: true,
-    },
-    {
-      name: "NASDAQ",
-      description: "NASDAQ Stock Exchange",
-      country: "USA",
-      timezone: "America/New_York",
-      open_time: "09:30:00",
-      close_time: "16:00:00",
-      is_active: true,
-    },
-    {
-      name: "Forex",
-      description: "Foreign Exchange Market",
-      country: "Global",
-      timezone: "UTC",
-      open_time: null,
-      close_time: null,
-      is_active: true,
-    },
-    {
-      name: "Crypto",
-      description: "Cryptocurrency Markets",
-      country: "Global",
-      timezone: "UTC",
-      open_time: null,
-      close_time: null,
-      is_active: true,
-    },
-  ]
+  let totalInserted = 0
+  let errors = 0
 
-  const { error } = await supabase.from("markets").insert(markets)
+  // Generate and insert data for each symbol and timeframe
+  for (const symbol of symbols) {
+    for (const timeframe of timeframes) {
+      // Generate different amounts of data based on timeframe
+      let count
+      switch (timeframe) {
+        case "1m":
+          count = 1440 // 1 day of 1-minute data
+          break
+        case "5m":
+          count = 1152 // 4 days of 5-minute data
+          break
+        case "15m":
+          count = 672 // 7 days of 15-minute data
+          break
+        case "1h":
+          count = 720 // 30 days of hourly data
+          break
+        case "4h":
+          count = 360 // 60 days of 4-hour data
+          break
+        case "1D":
+          count = 365 // 1 year of daily data
+          break
+        case "1W":
+          count = 104 // 2 years of weekly data
+          break
+        default:
+          count = 100
+      }
 
-  if (error) {
-    console.error("Error seeding markets:", error)
-    throw error
-  }
+      // Generate data with realistic price movements
+      const data = generatePriceData(symbol, timeframe, count)
 
-  console.log("Markets seeded successfully")
-}
+      // Insert data in batches to avoid hitting limits
+      const batchSize = 500
+      let inserted = 0
 
-export async function seedAssetClasses() {
-  const supabase = createServerComponentClient<Database>({ cookies })
+      for (let i = 0; i < data.length; i += batchSize) {
+        const batch = data.slice(i, i + batchSize)
 
-  // Check if asset classes already exist
-  const { data: existingAssetClasses } = await supabase.from("asset_classes").select("id").limit(1)
+        try {
+          const { error } = await supabase.from("price_data").upsert(batch, { onConflict: "symbol,timeframe,time" })
 
-  if (existingAssetClasses && existingAssetClasses.length > 0) {
-    console.log("Asset classes already seeded")
-    return
-  }
+          if (error) {
+            console.error(`Error seeding ${symbol} ${timeframe} data:`, error)
+            errors++
+          } else {
+            inserted += batch.length
+            totalInserted += batch.length
 
-  // Seed asset classes
-  const assetClasses = [
-    {
-      name: "Stocks",
-      description: "Equity shares of publicly traded companies",
-    },
-    {
-      name: "ETFs",
-      description: "Exchange Traded Funds",
-    },
-    {
-      name: "Forex",
-      description: "Foreign Exchange Currency Pairs",
-    },
-    {
-      name: "Crypto",
-      description: "Cryptocurrencies and digital assets",
-    },
-    {
-      name: "Futures",
-      description: "Futures contracts",
-    },
-    {
-      name: "Options",
-      description: "Options contracts",
-    },
-  ]
+            if (progressCallback) {
+              progressCallback({
+                symbol,
+                timeframe,
+                current: inserted,
+                total: count,
+              })
+            }
+          }
+        } catch (error) {
+          console.error(`Exception seeding ${symbol} ${timeframe} data:`, error)
+          errors++
+        }
 
-  const { error } = await supabase.from("asset_classes").insert(assetClasses)
+        // Small delay to avoid overwhelming the database
+        await new Promise((resolve) => setTimeout(resolve, 100))
+      }
 
-  if (error) {
-    console.error("Error seeding asset classes:", error)
-    throw error
-  }
-
-  console.log("Asset classes seeded successfully")
-}
-
-export async function seedSampleStrategies(userId: string) {
-  const supabase = createServerComponentClient<Database>({ cookies })
-
-  // Check if strategies already exist for this user
-  const { data: existingStrategies } = await supabase.from("strategies").select("id").eq("user_id", userId).limit(1)
-
-  if (existingStrategies && existingStrategies.length > 0) {
-    console.log("Strategies already seeded for this user")
-    return
-  }
-
-  // Seed strategies
-  const strategies = [
-    {
-      user_id: userId,
-      name: "Breakout Strategy",
-      description: "Trading breakouts from key support and resistance levels",
-      category: "Momentum",
-      market_condition: "Trending",
-      timeframes: ["1h", "4h", "1d"],
-      asset_classes: ["Stocks", "ETFs"],
-      risk_reward_min: 2.0,
-      win_rate_expected: 45.0,
-      position_size_percentage: 1.0,
-      max_risk_percentage: 1.0,
-      is_active: true,
-      is_public: false,
-      is_system: false,
-    },
-    {
-      user_id: userId,
-      name: "Moving Average Crossover",
-      description: "Trading crossovers of fast and slow moving averages",
-      category: "Trend Following",
-      market_condition: "Trending",
-      timeframes: ["4h", "1d"],
-      asset_classes: ["Stocks", "ETFs", "Forex"],
-      risk_reward_min: 1.5,
-      win_rate_expected: 55.0,
-      position_size_percentage: 1.0,
-      max_risk_percentage: 1.0,
-      is_active: true,
-      is_public: false,
-      is_system: false,
-    },
-    {
-      user_id: userId,
-      name: "Mean Reversion",
-      description: "Trading reversals back to the mean after extreme moves",
-      category: "Mean Reversion",
-      market_condition: "Ranging",
-      timeframes: ["1h", "4h"],
-      asset_classes: ["Stocks", "ETFs"],
-      risk_reward_min: 1.0,
-      win_rate_expected: 65.0,
-      position_size_percentage: 1.0,
-      max_risk_percentage: 1.0,
-      is_active: true,
-      is_public: false,
-      is_system: false,
-    },
-  ]
-
-  const { error } = await supabase.from("strategies").insert(strategies)
-
-  if (error) {
-    console.error("Error seeding strategies:", error)
-    throw error
-  }
-
-  console.log("Strategies seeded successfully")
-}
-
-export async function seedSampleTrades(userId: string) {
-  const supabase = createServerComponentClient<Database>({ cookies })
-
-  // Check if trades already exist for this user
-  const { data: existingTrades } = await supabase.from("trades").select("id").eq("user_id", userId).limit(1)
-
-  if (existingTrades && existingTrades.length > 0) {
-    console.log("Trades already seeded for this user")
-    return
-  }
-
-  // Get strategies for this user
-  const { data: strategies } = await supabase.from("strategies").select("id, name").eq("user_id", userId)
-
-  if (!strategies || strategies.length === 0) {
-    console.log("No strategies found for this user. Seeding strategies first.")
-    await seedSampleStrategies(userId)
-
-    const { data: newStrategies } = await supabase.from("strategies").select("id, name").eq("user_id", userId)
-
-    if (!newStrategies || newStrategies.length === 0) {
-      throw new Error("Failed to seed strategies")
+      console.log(`Seeded ${inserted} records for ${symbol} ${timeframe}`)
     }
-
-    const strategies = newStrategies
   }
 
-  // Create sample trades
-  const now = new Date()
-  const oneDay = 24 * 60 * 60 * 1000
+  return {
+    success: errors === 0,
+    message: `Database seeded with ${totalInserted} records. ${errors > 0 ? `(${errors} errors)` : ""}`,
+    totalInserted,
+    errors,
+  }
+}
 
-  const trades = [
+// Seed sample chart preferences
+export async function seedChartPreferences() {
+  const supabase = createClientComponentClient()
+
+  // Get current user
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { success: false, message: "User not authenticated" }
+  }
+
+  // Sample preferences
+  const preferences = [
     {
-      user_id: userId,
+      user_id: user.id,
+      name: "Default",
       symbol: "AAPL",
-      direction: "long",
-      status: "closed",
-      entry_date: new Date(now.getTime() - 10 * oneDay).toISOString(),
-      exit_date: new Date(now.getTime() - 9 * oneDay).toISOString(),
-      entry_price: 175.5,
-      exit_price: 180.25,
-      stop_loss: 172.0,
-      take_profit: 185.0,
-      position_size: 10,
-      position_size_unit: "shares",
-      fees: 1.5,
-      commissions: 0.5,
-      slippage: 0.1,
-      pnl_absolute: 47.5,
-      pnl_percentage: 2.71,
-      risk_reward_ratio: 2.71,
-      duration_minutes: 1440,
-      setup_type: "Breakout",
-      timeframe: "1d",
-      market_condition: "Bullish",
-      strategy_id: strategies[0].id,
-      notes: "Strong breakout above resistance with good volume. Followed the strategy rules perfectly.",
+      timeframe: "1D",
+      chart_type: "candlestick",
+      indicators: {
+        ma: [
+          { period: 20, color: "#2962FF", width: 2 },
+          { period: 50, color: "#FF6D00", width: 2 },
+          { period: 200, color: "#E91E63", width: 2 },
+        ],
+        volume: { visible: true, color: "#64B5F6" },
+      },
+      drawings: {},
+      layout: { showGrid: true, showWatermark: false },
     },
     {
-      user_id: userId,
-      symbol: "MSFT",
-      direction: "long",
-      status: "closed",
-      entry_date: new Date(now.getTime() - 8 * oneDay).toISOString(),
-      exit_date: new Date(now.getTime() - 6 * oneDay).toISOString(),
-      entry_price: 320.75,
-      exit_price: 315.5,
-      stop_loss: 315.0,
-      take_profit: 330.0,
-      position_size: 5,
-      position_size_unit: "shares",
-      fees: 1.25,
-      commissions: 0.5,
-      slippage: 0.05,
-      pnl_absolute: -26.25,
-      pnl_percentage: -1.63,
-      risk_reward_ratio: 1.61,
-      duration_minutes: 2880,
-      setup_type: "Moving Average Crossover",
-      timeframe: "4h",
-      market_condition: "Bullish",
-      strategy_id: strategies[1].id,
-      notes: "Stopped out just before the market reversed. Need to be more patient with entries.",
-    },
-    {
-      user_id: userId,
-      symbol: "TSLA",
-      direction: "short",
-      status: "closed",
-      entry_date: new Date(now.getTime() - 5 * oneDay).toISOString(),
-      exit_date: new Date(now.getTime() - 3 * oneDay).toISOString(),
-      entry_price: 245.0,
-      exit_price: 235.5,
-      stop_loss: 250.0,
-      take_profit: 230.0,
-      position_size: 3,
-      position_size_unit: "shares",
-      fees: 1.0,
-      commissions: 0.5,
-      slippage: 0.15,
-      pnl_absolute: 28.5,
-      pnl_percentage: 3.88,
-      risk_reward_ratio: 1.9,
-      duration_minutes: 2880,
-      setup_type: "Mean Reversion",
+      user_id: user.id,
+      name: "Crypto Trading",
+      symbol: "BTC",
       timeframe: "1h",
-      market_condition: "Bearish",
-      strategy_id: strategies[2].id,
-      notes: "Good entry at overbought conditions. Took profit at support level.",
+      chart_type: "candlestick",
+      indicators: {
+        bollinger: { period: 20, stdDev: 2, color: "#4CAF50" },
+        rsi: { period: 14, overbought: 70, oversold: 30 },
+      },
+      drawings: {},
+      layout: { showGrid: true, showWatermark: false },
     },
     {
-      user_id: userId,
-      symbol: "AMZN",
-      direction: "long",
-      status: "open",
-      entry_date: new Date(now.getTime() - 2 * oneDay).toISOString(),
-      exit_date: null,
-      entry_price: 145.25,
-      exit_price: null,
-      stop_loss: 140.0,
-      take_profit: 155.0,
-      position_size: 7,
-      position_size_unit: "shares",
-      fees: 1.3,
-      commissions: 0.5,
-      slippage: 0.05,
-      pnl_absolute: null,
-      pnl_percentage: null,
-      risk_reward_ratio: 1.87,
-      duration_minutes: null,
-      setup_type: "Breakout",
-      timeframe: "4h",
-      market_condition: "Bullish",
-      strategy_id: strategies[0].id,
-      notes: "Breaking out of consolidation pattern with increasing volume.",
-    },
-    {
-      user_id: userId,
-      symbol: "META",
-      direction: "long",
-      status: "planned",
-      entry_date: null,
-      exit_date: null,
-      entry_price: 325.5,
-      exit_price: null,
-      stop_loss: 320.0,
-      take_profit: 340.0,
-      position_size: 4,
-      position_size_unit: "shares",
-      fees: 0,
-      commissions: 0,
-      slippage: 0,
-      pnl_absolute: null,
-      pnl_percentage: null,
-      risk_reward_ratio: 2.64,
-      duration_minutes: null,
-      setup_type: "Moving Average Crossover",
-      timeframe: "1d",
-      market_condition: "Bullish",
-      strategy_id: strategies[1].id,
-      notes: "Waiting for 10 EMA to cross above 20 EMA with confirmation from MACD.",
+      user_id: user.id,
+      name: "Swing Trading",
+      symbol: "SPY",
+      timeframe: "1D",
+      chart_type: "candlestick",
+      indicators: {
+        ema: [
+          { period: 8, color: "#2962FF", width: 2 },
+          { period: 21, color: "#FF6D00", width: 2 },
+        ],
+        macd: { fast: 12, slow: 26, signal: 9 },
+      },
+      drawings: {},
+      layout: { showGrid: true, showWatermark: false },
     },
   ]
 
-  const { error } = await supabase.from("trades").insert(trades)
+  // Insert preferences
+  const { error } = await supabase.from("chart_preferences").upsert(preferences)
 
   if (error) {
-    console.error("Error seeding trades:", error)
-    throw error
+    console.error("Error seeding chart preferences:", error)
+    return { success: false, message: "Error seeding chart preferences" }
   }
 
-  console.log("Trades seeded successfully")
+  return { success: true, message: `Seeded ${preferences.length} chart preferences` }
 }
 
-export async function seedSampleJournalTemplates(userId: string) {
-  const supabase = createServerComponentClient<Database>({ cookies })
+// Seed sample chart drawings
+export async function seedChartDrawings() {
+  const supabase = createClientComponentClient()
 
-  // Check if templates already exist
-  const { data: existingTemplates } = await supabase
-    .from("journal_templates")
-    .select("id")
-    .eq("user_id", userId)
-    .limit(1)
+  // Get current user
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-  if (existingTemplates && existingTemplates.length > 0) {
-    console.log("Journal templates already seeded")
-    return
+  if (!user) {
+    return { success: false, message: "User not authenticated" }
   }
 
-  // Create template categories
-  const { data: categories, error: categoriesError } = await supabase
-    .from("template_categories")
-    .insert([
-      {
-        name: "Daily Journal",
-        description: "Templates for daily trading journal entries",
-        is_system: true,
+  // Sample drawings
+  const drawings = [
+    {
+      user_id: user.id,
+      symbol: "AAPL",
+      timeframe: "1D",
+      drawing_type: "trendline",
+      drawing_data: {
+        points: [
+          { time: Math.floor(Date.now() / 1000) - 30 * 24 * 60 * 60, price: 170 },
+          { time: Math.floor(Date.now() / 1000), price: 190 },
+        ],
+        color: "#2962FF",
+        width: 2,
       },
-      {
-        name: "Trade Analysis",
-        description: "Templates for analyzing individual trades",
-        is_system: true,
+      is_public: true,
+    },
+    {
+      user_id: user.id,
+      symbol: "MSFT",
+      timeframe: "1D",
+      drawing_type: "rectangle",
+      drawing_data: {
+        points: [
+          { time: Math.floor(Date.now() / 1000) - 60 * 24 * 60 * 60, price: 310 },
+          { time: Math.floor(Date.now() / 1000) - 30 * 24 * 60 * 60, price: 330 },
+        ],
+        color: "#FF6D00",
+        width: 1,
+        filled: true,
+        fillColor: "rgba(255, 109, 0, 0.2)",
       },
-      {
-        name: "Performance Review",
-        description: "Templates for periodic performance reviews",
-        is_system: true,
+      is_public: true,
+    },
+    {
+      user_id: user.id,
+      symbol: "BTC",
+      timeframe: "4h",
+      drawing_type: "fibonacci",
+      drawing_data: {
+        points: [
+          { time: Math.floor(Date.now() / 1000) - 14 * 24 * 60 * 60, price: 55000 },
+          { time: Math.floor(Date.now() / 1000) - 7 * 24 * 60 * 60, price: 65000 },
+        ],
+        levels: [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1],
+        color: "#9C27B0",
+        width: 1,
       },
-    ])
-    .select()
-
-  if (categoriesError) {
-    console.error("Error creating template categories:", categoriesError)
-    throw categoriesError
-  }
-
-  // Create templates
-  const dailyJournalTemplate = {
-    user_id: userId,
-    category_id: categories[0].id,
-    name: "Daily Trading Journal",
-    description: "Standard daily trading journal template",
-    is_system: true,
-    is_public: false,
-  }
-
-  const { data: template, error: templateError } = await supabase
-    .from("journal_templates")
-    .insert(dailyJournalTemplate)
-    .select()
-    .single()
-
-  if (templateError) {
-    console.error("Error creating journal template:", templateError)
-    throw templateError
-  }
-
-  // Create template sections
-  const { data: sections, error: sectionsError } = await supabase
-    .from("template_sections")
-    .insert([
-      {
-        template_id: template.id,
-        name: "Market Analysis",
-        description: "Overall market conditions and analysis",
-        order_index: 0,
-      },
-      {
-        template_id: template.id,
-        name: "Trading Plan",
-        description: "Plan for the trading day and watchlist",
-        order_index: 1,
-      },
-      {
-        template_id: template.id,
-        name: "Trade Execution",
-        description: "Details of trades executed today",
-        order_index: 2,
-      },
-      {
-        template_id: template.id,
-        name: "Reflection",
-        description: "Reflection on trading performance and emotions",
-        order_index: 3,
-      },
-    ])
-    .select()
-
-  if (sectionsError) {
-    console.error("Error creating template sections:", sectionsError)
-    throw sectionsError
-  }
-
-  // Create template questions
-  const questionsData = [
-    // Market Analysis section
-    {
-      section_id: sections[0].id,
-      question: "What is the overall market sentiment today?",
-      question_type: "text",
-      is_required: true,
-      order_index: 0,
-    },
-    {
-      section_id: sections[0].id,
-      question: "What are the key market indices doing?",
-      question_type: "text",
-      is_required: true,
-      order_index: 1,
-    },
-    {
-      section_id: sections[0].id,
-      question: "Are there any significant news events affecting the market?",
-      question_type: "text",
-      is_required: false,
-      order_index: 2,
-    },
-
-    // Trading Plan section
-    {
-      section_id: sections[1].id,
-      question: "What are your focus symbols for today?",
-      question_type: "text",
-      is_required: true,
-      order_index: 0,
-    },
-    {
-      section_id: sections[1].id,
-      question: "What setups are you looking for?",
-      question_type: "text",
-      is_required: true,
-      order_index: 1,
-    },
-    {
-      section_id: sections[1].id,
-      question: "What is your risk management plan for today?",
-      question_type: "text",
-      is_required: true,
-      order_index: 2,
-    },
-
-    // Trade Execution section
-    {
-      section_id: sections[2].id,
-      question: "Describe the trades you took today:",
-      question_type: "text",
-      is_required: false,
-      order_index: 0,
-    },
-    {
-      section_id: sections[2].id,
-      question: "Did you follow your trading plan?",
-      question_type: "boolean",
-      is_required: true,
-      order_index: 1,
-    },
-    {
-      section_id: sections[2].id,
-      question: "What worked well in your execution?",
-      question_type: "text",
-      is_required: false,
-      order_index: 2,
-    },
-    {
-      section_id: sections[2].id,
-      question: "What could be improved in your execution?",
-      question_type: "text",
-      is_required: false,
-      order_index: 3,
-    },
-
-    // Reflection section
-    {
-      section_id: sections[3].id,
-      question: "How would you rate your emotional control today?",
-      question_type: "scale",
-      options: { min: 1, max: 10, step: 1 },
-      is_required: true,
-      order_index: 0,
-    },
-    {
-      section_id: sections[3].id,
-      question: "What emotions did you experience while trading?",
-      question_type: "text",
-      is_required: true,
-      order_index: 1,
-    },
-    {
-      section_id: sections[3].id,
-      question: "What lessons did you learn today?",
-      question_type: "text",
-      is_required: true,
-      order_index: 2,
-    },
-    {
-      section_id: sections[3].id,
-      question: "What will you do differently tomorrow?",
-      question_type: "text",
-      is_required: true,
-      order_index: 3,
+      is_public: true,
     },
   ]
 
-  const { error: questionsError } = await supabase.from("template_questions").insert(questionsData)
+  // Insert drawings
+  const { error } = await supabase.from("chart_drawings").upsert(drawings)
 
-  if (questionsError) {
-    console.error("Error creating template questions:", questionsError)
-    throw questionsError
+  if (error) {
+    console.error("Error seeding chart drawings:", error)
+    return { success: false, message: "Error seeding chart drawings" }
   }
 
-  console.log("Journal templates seeded successfully")
+  return { success: true, message: `Seeded ${drawings.length} chart drawings` }
 }
 
-export async function seedDatabase(userId: string) {
-  try {
-    await seedMarkets()
-    await seedAssetClasses()
-    await seedSampleStrategies(userId)
-    await seedSampleTrades(userId)
-    await seedSampleJournalTemplates(userId)
+// Seed sample chart patterns
+export async function seedChartPatterns() {
+  const supabase = createClientComponentClient()
 
-    return { success: true, message: "Database seeded successfully" }
-  } catch (error) {
-    console.error("Error seeding database:", error)
-    return { success: false, message: "Error seeding database", error }
+  // Get current user
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { success: false, message: "User not authenticated" }
+  }
+
+  // Sample patterns
+  const patterns = [
+    {
+      name: "Double Bottom",
+      description:
+        "A bullish reversal pattern that forms after a downtrend, characterized by two lows at approximately the same price level.",
+      symbol: "AAPL",
+      timeframe: "1D",
+      pattern_data: {
+        points: [
+          { time: Math.floor(Date.now() / 1000) - 60 * 24 * 60 * 60, price: 180 },
+          { time: Math.floor(Date.now() / 1000) - 45 * 24 * 60 * 60, price: 165 },
+          { time: Math.floor(Date.now() / 1000) - 30 * 24 * 60 * 60, price: 175 },
+          { time: Math.floor(Date.now() / 1000) - 15 * 24 * 60 * 60, price: 165 },
+          { time: Math.floor(Date.now() / 1000), price: 185 },
+        ],
+        type: "bullish",
+        color: "#4CAF50",
+      },
+      thumbnail_url: "/patterns/double-bottom.png",
+      created_by: user.id,
+      is_system: true,
+    },
+    {
+      name: "Head and Shoulders",
+      description:
+        "A bearish reversal pattern that forms after an uptrend, characterized by three peaks with the middle peak (head) being the highest.",
+      symbol: "MSFT",
+      timeframe: "1D",
+      pattern_data: {
+        points: [
+          { time: Math.floor(Date.now() / 1000) - 75 * 24 * 60 * 60, price: 310 },
+          { time: Math.floor(Date.now() / 1000) - 60 * 24 * 60 * 60, price: 325 },
+          { time: Math.floor(Date.now() / 1000) - 45 * 24 * 60 * 60, price: 315 },
+          { time: Math.floor(Date.now() / 1000) - 30 * 24 * 60 * 60, price: 335 },
+          { time: Math.floor(Date.now() / 1000) - 15 * 24 * 60 * 60, price: 315 },
+          { time: Math.floor(Date.now() / 1000), price: 325 },
+        ],
+        type: "bearish",
+        color: "#F44336",
+      },
+      thumbnail_url: "/patterns/head-and-shoulders.png",
+      created_by: user.id,
+      is_system: true,
+    },
+    {
+      name: "Bull Flag",
+      description:
+        "A bullish continuation pattern that forms after a strong uptrend, characterized by a consolidation period (flag) following a sharp rise (pole).",
+      symbol: "NVDA",
+      timeframe: "1D",
+      pattern_data: {
+        points: [
+          { time: Math.floor(Date.now() / 1000) - 45 * 24 * 60 * 60, price: 700 },
+          { time: Math.floor(Date.now() / 1000) - 30 * 24 * 60 * 60, price: 800 },
+          { time: Math.floor(Date.now() / 1000) - 25 * 24 * 60 * 60, price: 790 },
+          { time: Math.floor(Date.now() / 1000) - 20 * 24 * 60 * 60, price: 780 },
+          { time: Math.floor(Date.now() / 1000) - 15 * 24 * 60 * 60, price: 770 },
+          { time: Math.floor(Date.now() / 1000) - 10 * 24 * 60 * 60, price: 780 },
+          { time: Math.floor(Date.now() / 1000), price: 850 },
+        ],
+        type: "bullish",
+        color: "#4CAF50",
+      },
+      thumbnail_url: "/patterns/bull-flag.png",
+      created_by: user.id,
+      is_system: true,
+    },
+  ]
+
+  // Insert patterns
+  const { error } = await supabase.from("chart_patterns").upsert(patterns)
+
+  if (error) {
+    console.error("Error seeding chart patterns:", error)
+    return { success: false, message: "Error seeding chart patterns" }
+  }
+
+  return { success: true, message: `Seeded ${patterns.length} chart patterns` }
+}
+
+// Seed sample indicator templates
+export async function seedIndicatorTemplates() {
+  const supabase = createClientComponentClient()
+
+  // Get current user
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { success: false, message: "User not authenticated" }
+  }
+
+  // Sample indicator templates
+  const templates = [
+    {
+      user_id: user.id,
+      name: "Moving Average Bundle",
+      indicator_type: "ma",
+      settings: {
+        periods: [20, 50, 200],
+        colors: ["#2962FF", "#FF6D00", "#E91E63"],
+        widths: [2, 2, 2],
+      },
+      is_public: true,
+    },
+    {
+      user_id: user.id,
+      name: "VWAP with Bands",
+      indicator_type: "vwap",
+      settings: {
+        period: "day",
+        showBands: true,
+        bandDeviations: [1, 2, 3],
+        colors: ["#9C27B0", "#7B1FA2", "#6A1B9A"],
+      },
+      is_public: true,
+    },
+    {
+      user_id: user.id,
+      name: "RSI with Stochastic",
+      indicator_type: "multi",
+      settings: {
+        indicators: [
+          {
+            type: "rsi",
+            period: 14,
+            overbought: 70,
+            oversold: 30,
+            color: "#2962FF",
+          },
+          {
+            type: "stochastic",
+            kPeriod: 14,
+            dPeriod: 3,
+            smooth: 3,
+            overbought: 80,
+            oversold: 20,
+            kColor: "#FF6D00",
+            dColor: "#E91E63",
+          },
+        ],
+      },
+      is_public: true,
+    },
+  ]
+
+  // Insert templates
+  const { error } = await supabase.from("indicator_templates").upsert(templates)
+
+  if (error) {
+    console.error("Error seeding indicator templates:", error)
+    return { success: false, message: "Error seeding indicator templates" }
+  }
+
+  return { success: true, message: `Seeded ${templates.length} indicator templates` }
+}
+
+// Seed all data
+export async function seedAllData(
+  progressCallback?: (progress: { symbol: string; timeframe: string; current: number; total: number }) => void,
+) {
+  const results = []
+
+  // Seed price data
+  const priceDataResult = await seedDatabase(progressCallback)
+  results.push({ type: "Price Data", ...priceDataResult })
+
+  // Seed chart preferences
+  const preferencesResult = await seedChartPreferences()
+  results.push({ type: "Chart Preferences", ...preferencesResult })
+
+  // Seed chart drawings
+  const drawingsResult = await seedChartDrawings()
+  results.push({ type: "Chart Drawings", ...drawingsResult })
+
+  // Seed chart patterns
+  const patternsResult = await seedChartPatterns()
+  results.push({ type: "Chart Patterns", ...patternsResult })
+
+  // Seed indicator templates
+  const templatesResult = await seedIndicatorTemplates()
+  results.push({ type: "Indicator Templates", ...templatesResult })
+
+  return {
+    success: results.every((r) => r.success),
+    results,
   }
 }
