@@ -151,8 +151,8 @@ export function TradeForm({ initialData, mode }: TradeFormProps) {
         values.duration_minutes = Math.round(durationMs / (1000 * 60))
       }
 
+      const userId = (await tradesService.getUserId()) || ""
       if (mode === "create") {
-        const userId = (await tradesService.getUserId()) || ""
         const tradeData: TradeInsert = {
           ...values,
           user_id: userId,

@@ -1,92 +1,178 @@
-import { redirect } from "next/navigation"
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
-import { GlassCard } from "@/components/ui/glass-card"
-import { Button } from "@/components/ui/button"
+"use client"
+
+import { useEffect, useState } from "react"
 import Link from "next/link"
-import { serverUserProfileService } from "@/lib/supabase/user-profile-service"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { clientTradesService, type Trade } from "@/lib/supabase/trades-service"
+import { formatCurrency, formatPercentage } from "@/lib/utils"
 
-export default async function DashboardPage() {
-  const supabase = createServerComponentClient({ cookies })
+export default function DashboardPage() {
+  const [trades, setTrades] = useState<Trade[]>([])
+  const [stats, setStats] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  // Check if user is authenticated
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true)
+        const [tradesData, statsData] = await Promise.all([
+          clientTradesService.getTrades(),
+          clientTradesService.getTradeStatistics(),
+        ])
+        setTrades(tradesData)
+        setStats(statsData)
+      } catch (err) {
+        console.error("Error fetching dashboard data:", err)
+        setError("Failed to load dashboard data. Please try again.")
+      } finally {
+        setLoading(false)
+      }
+    }
 
-  if (!session) {
-    redirect("/auth/login")
+    fetchData()
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="container mx-auto py-6 flex justify-center items-center h-64">
+        <p>Loading dashboard...</p>
+      </div>
+    )
   }
 
-  // Get user profile
-  const { data: profile } = await serverUserProfileService.getUserProfileById(session.user.id)
+  if (error) {
+    return (
+      <div className="container mx-auto py-6">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          <p>{error}</p>
+        </div>
+      </div>
+    )
+  }
+
+  const recentTrades = trades.slice(0, 5)
 
   return (
-    <div className="container mx-auto py-8">
-      <h1 className="text-3xl font-bold mb-8">Trading Dashboard</h1>
+    <div className="container mx-auto py-6 space-y-6">
+      <h1 className="text-3xl font-bold">Dashboard</h1>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <GlassCard className="p-6">
-          <h2 className="text-xl font-semibold mb-4">Welcome, {profile?.full_name || session.user.email}</h2>
-          <p className="text-muted-foreground mb-4">
-            Your trading journal is ready. Start tracking your trades and improving your performance.
-          </p>
-          <div className="flex flex-col space-y-2">
-            <Button asChild>
-              <Link href="/trades">View Trades</Link>
-            </Button>
-            <Button variant="outline" asChild>
-              <Link href="/profile">Edit Profile</Link>
-            </Button>
-          </div>
-        </GlassCard>
+      {stats && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>Total P&L</CardDescription>
+              <CardTitle className={stats.totalPnL > 0 ? "text-green-600" : stats.totalPnL < 0 ? "text-red-600" : ""}>
+                {formatCurrency(stats.totalPnL)}
+              </CardTitle>
+            </CardHeader>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>Win Rate</CardDescription>
+              <CardTitle>{formatPercentage(stats.winRate)}</CardTitle>
+            </CardHeader>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>Total Trades</CardDescription>
+              <CardTitle>{stats.totalTrades}</CardTitle>
+            </CardHeader>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>Profit Factor</CardDescription>
+              <CardTitle>{stats.profitFactor.toFixed(2)}</CardTitle>
+            </CardHeader>
+          </Card>
+        </div>
+      )}
 
-        <GlassCard className="p-6">
-          <h2 className="text-xl font-semibold mb-4">Trading Playbook</h2>
-          <p className="text-muted-foreground mb-4">Create and manage your trading strategies and setups.</p>
-          <Button asChild>
-            <Link href="/playbook">Go to Playbook</Link>
-          </Button>
-        </GlassCard>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <div className="flex justify-between items-center">
+              <CardTitle>Recent Trades</CardTitle>
+              <Button variant="outline" size="sm" asChild>
+                <Link href="/trades">View All</Link>
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {recentTrades.length === 0 ? (
+              <p className="text-center py-4 text-gray-500">No trades yet. Create your first trade!</p>
+            ) : (
+              <div className="space-y-4">
+                {recentTrades.map((trade) => (
+                  <div key={trade.id} className="flex justify-between items-center border-b pb-2">
+                    <div>
+                      <div className="font-medium">{trade.symbol}</div>
+                      <div className="text-sm text-gray-500">
+                        {trade.direction} • {trade.status}
+                      </div>
+                    </div>
+                    {trade.pnl_absolute !== null && (
+                      <div
+                        className={
+                          trade.pnl_absolute > 0
+                            ? "text-green-600 font-medium"
+                            : trade.pnl_absolute < 0
+                              ? "text-red-600 font-medium"
+                              : ""
+                        }
+                      >
+                        {formatCurrency(trade.pnl_absolute)}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-        <GlassCard className="p-6">
-          <h2 className="text-xl font-semibold mb-4">Journal</h2>
-          <p className="text-muted-foreground mb-4">Record your trading thoughts, insights, and lessons.</p>
-          <Button asChild>
-            <Link href="/journal">Go to Journal</Link>
-          </Button>
-        </GlassCard>
-
-        <GlassCard className="p-6">
-          <h2 className="text-xl font-semibold mb-4">Analytics</h2>
-          <p className="text-muted-foreground mb-4">
-            Analyze your trading performance and identify areas for improvement.
-          </p>
-          <Button asChild>
-            <Link href="/analytics">View Analytics</Link>
-          </Button>
-        </GlassCard>
-
-        <GlassCard className="p-6">
-          <h2 className="text-xl font-semibold mb-4">Charts</h2>
-          <p className="text-muted-foreground mb-4">Access advanced charting tools for technical analysis.</p>
-          <Button asChild>
-            <Link href="/charts">Open Charts</Link>
-          </Button>
-        </GlassCard>
-
-        <GlassCard className="p-6">
-          <h2 className="text-xl font-semibold mb-4">Import Data</h2>
-          <p className="text-muted-foreground mb-4">Import your trading data from CSV files or connect to brokers.</p>
-          <div className="flex flex-col space-y-2">
-            <Button asChild>
-              <Link href="/import/csv">Import CSV</Link>
-            </Button>
-            <Button variant="outline" asChild>
-              <Link href="/brokers">Connect Brokers</Link>
-            </Button>
-          </div>
-        </GlassCard>
+        {stats && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Performance Metrics</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-500">Winning Trades</p>
+                    <p className="font-medium">{stats.winningTrades}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Losing Trades</p>
+                    <p className="font-medium">{stats.losingTrades}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-500">Average Win</p>
+                    <p className="font-medium text-green-600">{formatCurrency(stats.averageWin)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Average Loss</p>
+                    <p className="font-medium text-red-600">{formatCurrency(stats.averageLoss)}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-500">Largest Win</p>
+                    <p className="font-medium text-green-600">{formatCurrency(stats.largestWin)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Largest Loss</p>
+                    <p className="font-medium text-red-600">{formatCurrency(stats.largestLoss)}</p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   )

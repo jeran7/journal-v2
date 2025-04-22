@@ -145,6 +145,14 @@ export const tradesService = {
     return data as Trade[]
   },
 
+  async getUserId() {
+    const supabase = createClientComponentClient<Database>()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    return user?.id || null
+  },
+
   async getTradeStatistics() {
     const supabase = createClientComponentClient<Database>()
     const { data: trades, error } = await supabase.from("trades").select("*").eq("status", "closed")
@@ -205,6 +213,9 @@ export const tradesService = {
   },
 }
 
+// Export clientTradesService as an alias of tradesService
+export const clientTradesService = tradesService
+
 // Server-side trades service
 export const serverTradesService = {
   async getTrades() {
@@ -229,64 +240,5 @@ export const serverTradesService = {
     }
 
     return data as Trade
-  },
-
-  async getTradeStatistics() {
-    const supabase = createServerComponentClient<Database>({ cookies })
-    const { data: trades, error } = await supabase.from("trades").select("*").eq("status", "closed")
-
-    if (error) {
-      console.error("Error fetching trades for statistics:", error)
-      throw error
-    }
-
-    const tradesData = trades as Trade[]
-
-    // Calculate statistics (same as client-side)
-    const totalTrades = tradesData.length
-    const winningTrades = tradesData.filter((trade) => (trade.pnl_absolute || 0) > 0).length
-    const losingTrades = tradesData.filter((trade) => (trade.pnl_absolute || 0) < 0).length
-    const breakEvenTrades = totalTrades - winningTrades - losingTrades
-
-    const winRate = totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0
-
-    const totalPnL = tradesData.reduce((sum, trade) => sum + (trade.pnl_absolute || 0), 0)
-    const averagePnL = totalTrades > 0 ? totalPnL / totalTrades : 0
-
-    const winningTradesData = tradesData.filter((trade) => (trade.pnl_absolute || 0) > 0)
-    const losingTradesData = tradesData.filter((trade) => (trade.pnl_absolute || 0) < 0)
-
-    const averageWin =
-      winningTradesData.length > 0
-        ? winningTradesData.reduce((sum, trade) => sum + (trade.pnl_absolute || 0), 0) / winningTradesData.length
-        : 0
-
-    const averageLoss =
-      losingTradesData.length > 0
-        ? losingTradesData.reduce((sum, trade) => sum + (trade.pnl_absolute || 0), 0) / losingTradesData.length
-        : 0
-
-    const largestWin =
-      winningTradesData.length > 0 ? Math.max(...winningTradesData.map((trade) => trade.pnl_absolute || 0)) : 0
-
-    const largestLoss =
-      losingTradesData.length > 0 ? Math.min(...losingTradesData.map((trade) => trade.pnl_absolute || 0)) : 0
-
-    const profitFactor = Math.abs(averageLoss) > 0 ? Math.abs(averageWin / averageLoss) : 0
-
-    return {
-      totalTrades,
-      winningTrades,
-      losingTrades,
-      breakEvenTrades,
-      winRate,
-      totalPnL,
-      averagePnL,
-      averageWin,
-      averageLoss,
-      largestWin,
-      largestLoss,
-      profitFactor,
-    }
   },
 }

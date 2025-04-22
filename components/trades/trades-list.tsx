@@ -1,27 +1,23 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useEffect, useState } from "react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { ArrowUpCircle, ArrowDownCircle, Clock, CheckCircle, XCircle, Edit, Trash2, Eye } from "lucide-react"
-import { tradesService, type Trade } from "@/lib/supabase/trades-service"
-import { formatCurrency, formatDate, formatPercentage } from "@/lib/utils"
+import { Card, CardContent } from "@/components/ui/card"
+import { clientTradesService, type Trade } from "@/lib/supabase/trades-service"
+import { formatCurrency, formatDate } from "@/lib/utils"
 
 export function TradesList() {
   const [trades, setTrades] = useState<Trade[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const router = useRouter()
 
   useEffect(() => {
     const fetchTrades = async () => {
       try {
         setLoading(true)
-        const data = await tradesService.getTrades()
+        const data = await clientTradesService.getTrades()
         setTrades(data)
-        setError(null)
       } catch (err) {
         console.error("Error fetching trades:", err)
         setError("Failed to load trades. Please try again.")
@@ -33,144 +29,85 @@ export function TradesList() {
     fetchTrades()
   }, [])
 
-  const handleDelete = async (id: string) => {
-    if (window.confirm("Are you sure you want to delete this trade?")) {
-      try {
-        await tradesService.deleteTrade(id)
-        setTrades(trades.filter((trade) => trade.id !== id))
-      } catch (err) {
-        console.error("Error deleting trade:", err)
-        setError("Failed to delete trade. Please try again.")
-      }
-    }
-  }
-
-  const getStatusBadge = (status: Trade["status"]) => {
-    switch (status) {
-      case "planned":
-        return (
-          <Badge variant="outline" className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300">
-            Planned
-          </Badge>
-        )
-      case "open":
-        return (
-          <Badge variant="outline" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
-            Open
-          </Badge>
-        )
-      case "closed":
-        return (
-          <Badge variant="outline" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
-            Closed
-          </Badge>
-        )
-      case "canceled":
-        return (
-          <Badge variant="outline" className="bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300">
-            Canceled
-          </Badge>
-        )
-      default:
-        return <Badge variant="outline">{status}</Badge>
-    }
-  }
-
-  const getDirectionIcon = (direction: Trade["direction"]) => {
-    return direction === "long" ? (
-      <ArrowUpCircle className="h-5 w-5 text-profit" />
-    ) : (
-      <ArrowDownCircle className="h-5 w-5 text-loss" />
-    )
-  }
-
-  const getStatusIcon = (status: Trade["status"]) => {
-    switch (status) {
-      case "planned":
-        return <Clock className="h-5 w-5 text-yellow-500" />
-      case "open":
-        return <Clock className="h-5 w-5 text-blue-500" />
-      case "closed":
-        return <CheckCircle className="h-5 w-5 text-green-500" />
-      case "canceled":
-        return <XCircle className="h-5 w-5 text-gray-500" />
-      default:
-        return null
-    }
-  }
-
   if (loading) {
-    return <div className="flex justify-center p-8">Loading trades...</div>
-  }
-
-  if (error) {
-    return <div className="text-red-500 p-4">{error}</div>
-  }
-
-  if (trades.length === 0) {
     return (
-      <div className="text-center p-8">
-        <p className="mb-4">No trades found. Start by adding your first trade.</p>
-        <Button onClick={() => router.push("/trades/new")}>Add Trade</Button>
+      <div className="flex justify-center items-center h-64">
+        <p>Loading trades...</p>
       </div>
     )
   }
 
+  if (error) {
+    return (
+      <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+        <p>{error}</p>
+      </div>
+    )
+  }
+
+  if (trades.length === 0) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center p-6">
+          <p className="text-center text-muted-foreground mb-4">No trades found. Create your first trade!</p>
+          <Button asChild>
+            <Link href="/trades/new">Add Trade</Link>
+          </Button>
+        </CardContent>
+      </Card>
+    )
+  }
+
   return (
-    <div className="overflow-x-auto">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Symbol</TableHead>
-            <TableHead>Direction</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Entry Date</TableHead>
-            <TableHead>Exit Date</TableHead>
-            <TableHead>Entry Price</TableHead>
-            <TableHead>Exit Price</TableHead>
-            <TableHead>P&L</TableHead>
-            <TableHead>P&L %</TableHead>
-            <TableHead>Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {trades.map((trade) => (
-            <TableRow key={trade.id}>
-              <TableCell className="font-medium">{trade.symbol}</TableCell>
-              <TableCell>
-                <div className="flex items-center">
-                  {getDirectionIcon(trade.direction)}
-                  <span className="ml-1">{trade.direction === "long" ? "Long" : "Short"}</span>
-                </div>
-              </TableCell>
-              <TableCell>{getStatusBadge(trade.status)}</TableCell>
-              <TableCell>{trade.entry_date ? formatDate(trade.entry_date) : "-"}</TableCell>
-              <TableCell>{trade.exit_date ? formatDate(trade.exit_date) : "-"}</TableCell>
-              <TableCell>{trade.entry_price ? formatCurrency(trade.entry_price) : "-"}</TableCell>
-              <TableCell>{trade.exit_price ? formatCurrency(trade.exit_price) : "-"}</TableCell>
-              <TableCell className={trade.pnl_absolute && trade.pnl_absolute > 0 ? "text-profit" : "text-loss"}>
-                {trade.pnl_absolute ? formatCurrency(trade.pnl_absolute) : "-"}
-              </TableCell>
-              <TableCell className={trade.pnl_percentage && trade.pnl_percentage > 0 ? "text-profit" : "text-loss"}>
-                {trade.pnl_percentage ? formatPercentage(trade.pnl_percentage) : "-"}
-              </TableCell>
-              <TableCell>
-                <div className="flex space-x-2">
-                  <Button variant="ghost" size="icon" onClick={() => router.push(`/trades/${trade.id}`)}>
-                    <Eye className="h-4 w-4" />
+    <div className="space-y-4">
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b">
+              <th className="text-left py-3 px-4">Symbol</th>
+              <th className="text-left py-3 px-4">Direction</th>
+              <th className="text-left py-3 px-4">Status</th>
+              <th className="text-left py-3 px-4">Entry Date</th>
+              <th className="text-right py-3 px-4">Entry Price</th>
+              <th className="text-right py-3 px-4">Exit Price</th>
+              <th className="text-right py-3 px-4">P&L</th>
+              <th className="text-center py-3 px-4">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {trades.map((trade) => (
+              <tr key={trade.id} className="border-b hover:bg-muted/50">
+                <td className="py-3 px-4 font-medium">{trade.symbol}</td>
+                <td className="py-3 px-4 capitalize">{trade.direction}</td>
+                <td className="py-3 px-4 capitalize">{trade.status}</td>
+                <td className="py-3 px-4">{trade.entry_date ? formatDate(trade.entry_date) : "N/A"}</td>
+                <td className="py-3 px-4 text-right">
+                  {trade.entry_price ? formatCurrency(trade.entry_price) : "N/A"}
+                </td>
+                <td className="py-3 px-4 text-right">{trade.exit_price ? formatCurrency(trade.exit_price) : "N/A"}</td>
+                <td
+                  className={`py-3 px-4 text-right ${
+                    trade.pnl_absolute
+                      ? trade.pnl_absolute > 0
+                        ? "text-profit"
+                        : trade.pnl_absolute < 0
+                          ? "text-loss"
+                          : ""
+                      : ""
+                  }`}
+                >
+                  {trade.pnl_absolute ? formatCurrency(trade.pnl_absolute) : "N/A"}
+                </td>
+                <td className="py-3 px-4 text-center">
+                  <Button asChild variant="outline" size="sm">
+                    <Link href={`/trades/${trade.id}`}>View</Link>
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => router.push(`/trades/${trade.id}/edit`)}>
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" onClick={() => handleDelete(trade.id)}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
