@@ -1,19 +1,60 @@
 import { getSupabaseClient, getServerSupabaseClient } from "./supabase-client"
 
+export type Timeframe = "1m" | "5m" | "15m" | "1h" | "4h" | "1D" | "1W"
+
 export interface PriceDataPoint {
-  id?: string
   symbol: string
-  timeframe: string
+  timeframe: Timeframe
   time: number
   open: number
   high: number
   low: number
   close: number
-  volume?: number
-  created_at?: string
+  volume: number
 }
 
-export type Timeframe = "1m" | "5m" | "15m" | "1h" | "4h" | "1D" | "1W"
+export interface ChartPreference {
+  id?: string
+  user_id: string
+  name: string
+  symbol: string
+  timeframe: Timeframe
+  chart_type: string
+  indicators: Record<string, any>
+  drawings: Record<string, any>
+  layout: Record<string, any>
+}
+
+export interface ChartDrawing {
+  id?: string
+  user_id: string
+  symbol: string
+  timeframe: Timeframe
+  drawing_type: string
+  drawing_data: Record<string, any>
+  is_public: boolean
+}
+
+export interface ChartPattern {
+  id?: string
+  name: string
+  description: string
+  symbol: string
+  timeframe: Timeframe
+  pattern_data: Record<string, any>
+  thumbnail_url: string
+  created_by: string
+  is_system: boolean
+}
+
+export interface IndicatorTemplate {
+  id?: string
+  user_id: string
+  name: string
+  indicator_type: string
+  settings: Record<string, any>
+  is_public: boolean
+}
 
 // Client-side cache to minimize database calls
 const priceDataCache: Record<string, { data: PriceDataPoint[]; timestamp: number }> = {}

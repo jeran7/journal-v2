@@ -59,9 +59,10 @@
     "vaul": "^0.9.6",
     "zod": "^3.24.1",
     "@emotion/is-prop-valid": "latest",
+    "@supabase/supabase-js": "latest",
     "framer-motion": "latest",
     "lightweight-charts": "latest",
-    "@supabase/supabase-js": "latest"
+    "@supabase/auth-helpers-nextjs": "latest"
   },
   "devDependencies": {
     "@types/node": "^22",

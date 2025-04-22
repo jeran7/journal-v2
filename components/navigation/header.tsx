@@ -1,10 +1,11 @@
 "use client"
 
-import { useState } from "react"
 import Link from "next/link"
-import { Bell, Menu, Plus, Search, User } from "lucide-react"
+import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { ThemeToggle } from "@/components/ui/theme-toggle"
+import { useAuth } from "@/lib/supabase/auth-context"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,130 +14,129 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { Sidebar } from "@/components/navigation/sidebar"
+import { LogOut, Settings, User } from "lucide-react"
+import Image from "next/image"
 
 export function Header() {
-  const [searchOpen, setSearchOpen] = useState(false)
+  const pathname = usePathname()
+  const { user, signOut, isLoading } = useAuth()
+
+  const isActive = (path: string) => {
+    return pathname === path
+  }
 
   return (
-    <header className="sticky top-0 z-50 flex h-14 items-center gap-4 border-b border-border bg-background/80 px-4 backdrop-blur-sm">
-      <Sheet>
-        <SheetTrigger asChild>
-          <Button variant="ghost" size="icon" className="md:hidden">
-            <Menu className="h-5 w-5" />
-            <span className="sr-only">Toggle menu</span>
-          </Button>
-        </SheetTrigger>
-        <SheetContent side="left" className="p-0">
-          <Sidebar />
-        </SheetContent>
-      </Sheet>
+    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="container flex h-14 items-center">
+        <div className="mr-4 flex">
+          <Link href="/" className="flex items-center space-x-2">
+            <Image src="/financial-growth-journal.png" alt="Trading Journal" width={140} height={32} priority />
+          </Link>
+        </div>
+        <div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">
+          <nav className="flex items-center space-x-4">
+            <Link
+              href="/dashboard"
+              className={`text-sm font-medium transition-colors hover:text-primary ${
+                isActive("/dashboard") ? "text-foreground" : "text-foreground/60"
+              }`}
+            >
+              Dashboard
+            </Link>
+            <Link
+              href="/trades"
+              className={`text-sm font-medium transition-colors hover:text-primary ${
+                isActive("/trades") ? "text-foreground" : "text-foreground/60"
+              }`}
+            >
+              Trades
+            </Link>
+            <Link
+              href="/journal"
+              className={`text-sm font-medium transition-colors hover:text-primary ${
+                isActive("/journal") ? "text-foreground" : "text-foreground/60"
+              }`}
+            >
+              Journal
+            </Link>
+            <Link
+              href="/playbook"
+              className={`text-sm font-medium transition-colors hover:text-primary ${
+                isActive("/playbook") ? "text-foreground" : "text-foreground/60"
+              }`}
+            >
+              Playbook
+            </Link>
+            <Link
+              href="/analytics"
+              className={`text-sm font-medium transition-colors hover:text-primary ${
+                isActive("/analytics") ? "text-foreground" : "text-foreground/60"
+              }`}
+            >
+              Analytics
+            </Link>
+            <Link
+              href="/charts"
+              className={`text-sm font-medium transition-colors hover:text-primary ${
+                isActive("/charts") ? "text-foreground" : "text-foreground/60"
+              }`}
+            >
+              Charts
+            </Link>
+          </nav>
+          <div className="flex items-center space-x-4">
+            <ThemeToggle />
 
-      <div className="flex items-center gap-2">
-        {searchOpen ? (
-          <div className="relative flex-1 md:w-64 lg:w-96">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Search trades, symbols..."
-              className="w-full bg-background pl-8 focus-visible:ring-1"
-              autoFocus
-              onBlur={() => setSearchOpen(false)}
-            />
+            {!isLoading && (
+              <>
+                {user ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={user.user_metadata?.avatar_url || ""} alt={user.email || ""} />
+                          <AvatarFallback>{user.email?.charAt(0).toUpperCase() || "U"}</AvatarFallback>
+                        </Avatar>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-56" align="end" forceMount>
+                      <DropdownMenuLabel className="font-normal">
+                        <div className="flex flex-col space-y-1">
+                          <p className="text-sm font-medium leading-none">
+                            {user.user_metadata?.full_name || user.email}
+                          </p>
+                          <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
+                        </div>
+                      </DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem asChild>
+                        <Link href="/profile" className="cursor-pointer">
+                          <User className="mr-2 h-4 w-4" />
+                          <span>Profile</span>
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link href="/settings" className="cursor-pointer">
+                          <Settings className="mr-2 h-4 w-4" />
+                          <span>Settings</span>
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem className="cursor-pointer" onClick={() => signOut()}>
+                        <LogOut className="mr-2 h-4 w-4" />
+                        <span>Log out</span>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : (
+                  <Button asChild>
+                    <Link href="/auth/login">Sign In</Link>
+                  </Button>
+                )}
+              </>
+            )}
           </div>
-        ) : (
-          <Button variant="ghost" size="icon" onClick={() => setSearchOpen(true)}>
-            <Search className="h-5 w-5" />
-            <span className="sr-only">Search</span>
-          </Button>
-        )}
-      </div>
-
-      <div className="ml-auto flex items-center gap-2">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="relative">
-              <Bell className="h-5 w-5" />
-              <span className="sr-only">Notifications</span>
-              <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-loss text-[10px] font-medium text-white">
-                3
-              </span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-80">
-            <DropdownMenuLabel>Notifications</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <div className="max-h-96 overflow-auto">
-              {[1, 2, 3].map((i) => (
-                <DropdownMenuItem key={i} className="cursor-pointer py-3">
-                  <div className="flex flex-col gap-1">
-                    <p className="text-sm font-medium">Trade Sync Completed</p>
-                    <p className="text-xs text-muted-foreground">
-                      Successfully imported 12 trades from Interactive Brokers
-                    </p>
-                    <p className="text-xs text-muted-foreground">2 hours ago</p>
-                  </div>
-                </DropdownMenuItem>
-              ))}
-            </div>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <Plus className="h-5 w-5" />
-              <span className="sr-only">Add new</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem>
-              <Link href="/trades/new" className="flex w-full items-center">
-                Add Trade
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Link href="/journal/new" className="flex w-full items-center">
-                Add Journal Entry
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Link href="/playbook/new" className="flex w-full items-center">
-                Add Strategy
-              </Link>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="rounded-full">
-              <User className="h-5 w-5" />
-              <span className="sr-only">User menu</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>My Account</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <Link href="/profile" className="flex w-full items-center">
-                Profile
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Link href="/settings" className="flex w-full items-center">
-                Settings
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <Link href="/logout" className="flex w-full items-center">
-                Logout
-              </Link>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        </div>
       </div>
     </header>
   )

@@ -1,83 +1,56 @@
-"use client"
-
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
+import { redirect } from "next/navigation"
+import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
+import { cookies } from "next/headers"
 import { GlassCard } from "@/components/ui/glass-card"
+import { Button } from "@/components/ui/button"
 import { seedDatabase } from "@/lib/supabase/seed-data"
-import { useToast } from "@/hooks/use-toast"
 
-export default function SeedPage() {
-  const { toast } = useToast()
-  const [isSeeding, setIsSeeding] = useState(false)
-  const [result, setResult] = useState<{ success: boolean; message: string } | null>(null)
+export default async function SeedPage() {
+  const supabase = createServerComponentClient({ cookies })
 
-  const handleSeed = async () => {
-    setIsSeeding(true)
-    setResult(null)
+  // Check if user is authenticated
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
 
-    try {
-      const result = await seedDatabase()
-      setResult(result)
+  if (!session) {
+    redirect("/auth/login")
+  }
 
-      toast({
-        title: result.success ? "Success" : "Error",
-        description: result.message,
-        variant: result.success ? "default" : "destructive",
-      })
-    } catch (error) {
-      console.error("Error seeding database:", error)
-      setResult({
-        success: false,
-        message: "An error occurred while seeding the database",
-      })
+  async function seedDatabaseAction() {
+    "use server"
 
-      toast({
-        title: "Error",
-        description: "An error occurred while seeding the database",
-        variant: "destructive",
-      })
-    } finally {
-      setIsSeeding(false)
-    }
+    const result = await seedDatabase(session.user.id)
+    return result
   }
 
   return (
-    <div className="container mx-auto py-12">
-      <h1 className="text-3xl font-bold mb-8">Database Seed Tool</h1>
+    <div className="container mx-auto py-8">
+      <h1 className="text-3xl font-bold mb-8">Seed Database</h1>
 
       <GlassCard className="p-6">
-        <h2 className="text-xl font-semibold mb-4">Seed Chart Data</h2>
+        <h2 className="text-xl font-semibold mb-4">Seed Trading Journal Data</h2>
         <p className="text-muted-foreground mb-6">
-          This tool will populate the database with sample price data for common stocks across different timeframes.
-          This is useful for testing and development purposes.
+          This will populate your database with sample data for testing the trading journal application. This includes:
         </p>
 
-        <div className="space-y-4">
-          <div className="flex items-center gap-4">
-            <Button onClick={handleSeed} disabled={isSeeding} className="w-40">
-              {isSeeding ? "Seeding..." : "Seed Database"}
-            </Button>
+        <ul className="list-disc pl-6 mb-6 space-y-2">
+          <li>Markets and asset classes</li>
+          <li>Sample trading strategies</li>
+          <li>Sample trades with various statuses</li>
+          <li>Journal templates and questions</li>
+        </ul>
 
-            {result && <span className={result.success ? "text-green-500" : "text-red-500"}>{result.message}</span>}
-          </div>
-
-          <div className="text-sm text-muted-foreground">
-            <p>This will seed the following data:</p>
-            <ul className="list-disc list-inside mt-2">
-              <li>5 symbols: AAPL, MSFT, GOOGL, AMZN, META</li>
-              <li>7 timeframes: 1m, 5m, 15m, 1h, 4h, 1D, 1W</li>
-              <li>Appropriate amount of historical data for each timeframe</li>
-            </ul>
-          </div>
-
-          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-md p-4 text-yellow-500">
-            <p className="font-medium">Warning</p>
-            <p className="text-sm">
-              This operation will insert a large amount of data into your database. It may take some time to complete
-              and could affect database performance.
-            </p>
-          </div>
+        <div className="bg-yellow-100 dark:bg-yellow-900/30 p-4 rounded-md mb-6">
+          <p className="text-yellow-800 dark:text-yellow-200">
+            <strong>Note:</strong> This action will only seed data if the tables are empty. If you already have data, it
+            will not overwrite it.
+          </p>
         </div>
+
+        <form action={seedDatabaseAction}>
+          <Button type="submit">Seed Database</Button>
+        </form>
       </GlassCard>
     </div>
   )

@@ -53,17 +53,49 @@ const config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        // Semantic colors
+        success: {
+          DEFAULT: "hsl(var(--success))",
+          foreground: "hsl(var(--success-foreground))",
+          muted: "hsl(var(--success-muted))",
+          emphasis: "hsl(var(--success-emphasis))",
+        },
+        warning: {
+          DEFAULT: "hsl(var(--warning))",
+          foreground: "hsl(var(--warning-foreground))",
+          muted: "hsl(var(--warning-muted))",
+          emphasis: "hsl(var(--warning-emphasis))",
+        },
+        insight: {
+          DEFAULT: "hsl(var(--insight))",
+          foreground: "hsl(var(--insight-foreground))",
+          muted: "hsl(var(--insight-muted))",
+          emphasis: "hsl(var(--insight-emphasis))",
+        },
+        danger: {
+          DEFAULT: "hsl(var(--danger))",
+          foreground: "hsl(var(--danger-foreground))",
+          muted: "hsl(var(--danger-muted))",
+          emphasis: "hsl(var(--danger-emphasis))",
+        },
+        advanced: {
+          DEFAULT: "hsl(var(--advanced))",
+          foreground: "hsl(var(--advanced-foreground))",
+          muted: "hsl(var(--advanced-muted))",
+          emphasis: "hsl(var(--advanced-emphasis))",
+        },
+        // Legacy colors (keeping for backward compatibility)
         profit: {
-          DEFAULT: "hsl(var(--profit))",
-          light: "hsl(var(--profit-light))",
+          DEFAULT: "hsl(var(--success))",
+          light: "hsl(var(--success-muted))",
         },
         loss: {
-          DEFAULT: "hsl(var(--loss))",
-          light: "hsl(var(--loss-light))",
+          DEFAULT: "hsl(var(--danger))",
+          light: "hsl(var(--danger-muted))",
         },
         neutral: {
-          DEFAULT: "hsl(var(--neutral))",
-          light: "hsl(var(--neutral-light))",
+          DEFAULT: "hsl(var(--insight))",
+          light: "hsl(var(--insight-muted))",
         },
       },
       borderRadius: {
