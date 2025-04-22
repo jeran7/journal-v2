@@ -1,155 +1,117 @@
-import { createClientComponentClient, createServerComponentClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
+import { getServerSupabaseClient, getSupabaseClient } from "./supabase-client"
 import type { Database } from "@/types/supabase-types"
 
-export type UserProfile = {
-  id: string
-  created_at: string
-  updated_at: string
-  full_name: string | null
-  avatar_url: string | null
-  trading_experience: string | null
-  preferred_markets: string[] | null
-  preferred_timeframes: string[] | null
-  risk_tolerance: number | null
-  default_position_size: number | null
-  theme_preference: string | null
-  layout_settings: any | null
-  bio: string | null
-  trading_style: string | null
-  achievements: any | null
-  email_notifications: boolean
-  completed_onboarding: boolean
-}
+export type UserProfile = Database["public"]["Tables"]["user_profiles"]["Row"]
+export type UserProfileUpdate = Database["public"]["Tables"]["user_profiles"]["Update"]
 
-// Client-side service (for use in client components)
-class UserProfileService {
+// Client-side profile service
+export const userProfileService = {
   async getCurrentUserProfile() {
-    const supabase = createClientComponentClient<Database>()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    const supabase = getSupabaseClient()
+    const { data: user } = await supabase.auth.getUser()
 
-    if (!user) {
-      return { data: null, error: new Error("Not authenticated") }
+    if (!user.user) {
+      return { data: null, error: new Error("User not authenticated") }
     }
 
-    return await supabase.from("user_profiles").select("*").eq("id", user.id).single()
-  }
+    const { data, error } = await supabase.from("user_profiles").select("*").eq("id", user.user.id).single()
 
-  async getUserProfileById(userId: string) {
-    const supabase = createClientComponentClient<Database>()
-    return await supabase.from("user_profiles").select("*").eq("id", userId).single()
-  }
+    return { data, error }
+  },
+
+  async updateProfile(updates: UserProfileUpdate) {
+    const supabase = getSupabaseClient()
+    const { data: user } = await supabase.auth.getUser()
+
+    if (!user.user) {
+      return { data: null, error: new Error("User not authenticated") }
+    }
+
+    const { data, error } = await supabase
+      .from("user_profiles")
+      .update({
+        ...updates,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", user.user.id)
+      .select()
+      .single()
+
+    return { data, error }
+  },
 
   async uploadAvatar(file: File) {
-    const supabase = createClientComponentClient<Database>()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    const supabase = getSupabaseClient()
+    const { data: user } = await supabase.auth.getUser()
 
-    if (!user) {
-      return { data: null, error: new Error("Not authenticated") }
+    if (!user.user) {
+      return { data: null, error: new Error("User not authenticated") }
     }
 
-    const timestamp = Date.now()
-    const filePath = `avatars/${user.id}/${timestamp}-${file.name}`
+    const fileExt = file.name.split(".").pop()
+    const fileName = `${user.user.id}-${Math.random().toString(36).substring(2)}.${fileExt}`
+    const filePath = `avatars/${fileName}`
 
-    const { error: uploadError } = await supabase.storage.from("avatars").upload(filePath, file, {
-      cacheControl: "3600",
-      upsert: false,
-    })
+    // Upload the file
+    const { error: uploadError } = await supabase.storage.from("user-content").upload(filePath, file, { upsert: true })
 
     if (uploadError) {
-      console.error("Error uploading avatar:", uploadError)
       return { data: null, error: uploadError }
     }
 
-    const avatar_url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/avatars/${filePath}`
+    // Get the public URL
+    const { data } = supabase.storage.from("user-content").getPublicUrl(filePath)
 
-    const { error: updateError } = await supabase.from("user_profiles").update({ avatar_url }).eq("id", user.id)
+    // Update the user profile with the new avatar URL
+    const { data: profile, error } = await this.updateProfile({
+      avatar_url: data.publicUrl,
+    })
 
-    if (updateError) {
-      console.error("Error updating profile with avatar URL:", updateError)
-      return { data: null, error: updateError }
-    }
+    return { data: profile, error }
+  },
+}
 
-    return { data: { avatar_url }, error: null }
-  }
+// Server-side profile service
+export const serverUserProfileService = {
+  async getUserProfileById(userId: string) {
+    const supabase = getServerSupabaseClient()
 
-  async updateProfile(profileData: Partial<UserProfile>) {
-    const supabase = createClientComponentClient<Database>()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    const { data, error } = await supabase.from("user_profiles").select("*").eq("id", userId).single()
 
-    if (!user) {
-      return { data: null, error: new Error("Not authenticated") }
-    }
+    return { data, error }
+  },
 
-    return await supabase.from("user_profiles").update(profileData).eq("id", user.id).select().single()
-  }
+  async createUserProfile(userId: string, initialData: Partial<UserProfile> = {}) {
+    const supabase = getServerSupabaseClient()
 
-  async createUserProfile(userId: string, profileData: any) {
-    const supabase = createClientComponentClient<Database>()
-    return await supabase
+    const { data, error } = await supabase
       .from("user_profiles")
-      .insert([{ id: userId, ...profileData }])
+      .insert({
+        id: userId,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        email_notifications: true,
+        completed_onboarding: false,
+        ...initialData,
+      })
       .select()
       .single()
-  }
 
-  async logSecurityEvent(userId: string, eventType: string, ipAddress: string, userAgent: string) {
-    const supabase = createClientComponentClient<Database>()
-    return await supabase.from("security_logs").insert([
-      {
-        user_id: userId,
-        event_type: eventType,
-        ip_address: ipAddress,
-        user_agent: userAgent,
-      },
-    ])
-  }
+    return { data, error }
+  },
 
-  async getUserId(): Promise<string | null> {
-    const supabase = createClientComponentClient<Database>()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    return user?.id || null
-  }
+  async logSecurityEvent(userId: string, eventType: string, ipAddress: string, userAgent: string, metadata?: any) {
+    const supabase = getServerSupabaseClient()
+
+    const { error } = await supabase.from("security_logs").insert({
+      user_id: userId,
+      event_type: eventType,
+      ip_address: ipAddress,
+      user_agent: userAgent,
+      created_at: new Date().toISOString(),
+      metadata,
+    })
+
+    return { error }
+  },
 }
-
-// Server-side service (for use in server components and API routes)
-class ServerUserProfileService {
-  async getUserProfileById(userId: string) {
-    const supabase = createServerComponentClient<Database>({ cookies })
-    return await supabase.from("user_profiles").select("*").eq("id", userId).single()
-  }
-
-  async updateUserProfile(userId: string, profileData: any) {
-    const supabase = createServerComponentClient<Database>({ cookies })
-    return await supabase.from("user_profiles").update(profileData).eq("id", userId)
-  }
-
-  async createUserProfile(userId: string, profileData: any) {
-    const supabase = createServerComponentClient<Database>({ cookies })
-    return await supabase.from("user_profiles").insert([{ id: userId, ...profileData }])
-  }
-
-  async logSecurityEvent(userId: string, eventType: string, ipAddress: string, userAgent: string) {
-    const supabase = createServerComponentClient<Database>({ cookies })
-    return await supabase.from("security_logs").insert([
-      {
-        user_id: userId,
-        event_type: eventType,
-        ip_address: ipAddress,
-        user_agent: userAgent,
-      },
-    ])
-  }
-}
-
-// Create instances
-export const userProfileService = new UserProfileService()
-export const serverUserProfileService = new ServerUserProfileService()

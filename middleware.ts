@@ -1,18 +1,34 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
-import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs"
+import { createClient } from "@supabase/supabase-js"
+import type { Database } from "@/types/supabase-types"
 
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
   const pathname = req.nextUrl.pathname
 
-  // Create a Supabase client configured to use cookies
-  const supabase = createMiddlewareClient({ req, res })
+  // Get the Supabase token from the cookie
+  const supabaseToken = req.cookies.get("sb-access-token")?.value
+  const supabaseRefreshToken = req.cookies.get("sb-refresh-token")?.value
 
-  // Refresh session if expired
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
+  let session = null
+
+  // If we have a token, try to get the session
+  if (supabaseToken) {
+    // Create a new Supabase client
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey)
+
+    // Set the session
+    if (supabaseToken && supabaseRefreshToken) {
+      const { data } = await supabase.auth.setSession({
+        access_token: supabaseToken,
+        refresh_token: supabaseRefreshToken,
+      })
+      session = data.session
+    }
+  }
 
   // Auth routes that don't require authentication
   const authRoutes = ["/auth/login", "/auth/register", "/auth/forgot-password", "/auth/update-password"]
