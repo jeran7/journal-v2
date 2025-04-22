@@ -5,7 +5,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { TradesList } from "@/components/trades/trades-list"
 import { GlassCard } from "@/components/ui/glass-card"
-import { clientTradesService } from "@/lib/supabase/trades-service"
+import { serverTradesService } from "@/lib/supabase/server-trades-service"
 import { formatCurrency, formatPercentage } from "@/lib/utils"
 
 export default function TradesPage() {
@@ -25,7 +25,7 @@ export default function TradesPage() {
   useEffect(() => {
     async function fetchStats() {
       try {
-        const statsData = await clientTradesService.getTradeStatistics()
+        const statsData = await serverTradesService.getTradeStatistics()
         setStats(statsData)
       } catch (error) {
         console.error("Error fetching trade statistics:", error)

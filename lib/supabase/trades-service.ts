@@ -1,6 +1,7 @@
-import { createClientComponentClient, createServerComponentClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import type { Database } from "@/types/supabase-types"
+// Re-export serverTradesService from the server file
+export { serverTradesService } from "./server-trades-service"
 
 export type Trade = {
   id: string
@@ -215,30 +216,3 @@ export const tradesService = {
 
 // Export clientTradesService as an alias of tradesService
 export const clientTradesService = tradesService
-
-// Server-side trades service
-export const serverTradesService = {
-  async getTrades() {
-    const supabase = createServerComponentClient<Database>({ cookies })
-    const { data, error } = await supabase.from("trades").select("*").order("entry_date", { ascending: false })
-
-    if (error) {
-      console.error("Error fetching trades:", error)
-      throw error
-    }
-
-    return data as Trade[]
-  },
-
-  async getTradeById(id: string) {
-    const supabase = createServerComponentClient<Database>({ cookies })
-    const { data, error } = await supabase.from("trades").select("*").eq("id", id).single()
-
-    if (error) {
-      console.error(`Error fetching trade with id ${id}:`, error)
-      throw error
-    }
-
-    return data as Trade
-  },
-}
