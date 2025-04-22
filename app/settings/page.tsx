@@ -1,24 +1,47 @@
-import { redirect } from "next/navigation"
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
+"use client"
+
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { GlassCard } from "@/components/ui/glass-card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { serverUserProfileService } from "@/lib/supabase/user-profile-service"
+import { getSupabaseClient } from "@/lib/supabase/supabase-client"
+import { userProfileService } from "@/lib/supabase/user-profile-service"
+import type { UserProfile } from "@/lib/supabase/user-profile-service"
 
-export default async function SettingsPage() {
-  const supabase = createServerComponentClient({ cookies })
+export default function SettingsPage() {
+  const router = useRouter()
+  const [isLoading, setIsLoading] = useState(true)
+  const [profile, setProfile] = useState<UserProfile | null>(null)
 
-  // Check if user is authenticated
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
+  useEffect(() => {
+    async function checkAuth() {
+      const supabase = getSupabaseClient()
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
 
-  if (!session) {
-    redirect("/auth/login")
+      if (!session) {
+        router.push("/auth/login")
+        return
+      }
+
+      // Get user profile
+      const { data } = await userProfileService.getCurrentUserProfile()
+      setProfile(data)
+      setIsLoading(false)
+    }
+
+    checkAuth()
+  }, [router])
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto py-8">
+        <h1 className="text-3xl font-bold mb-8">Settings</h1>
+        <p>Loading...</p>
+      </div>
+    )
   }
-
-  // Get user profile
-  const { data: profile } = await serverUserProfileService.getUserProfileById(session.user.id)
 
   return (
     <div className="container mx-auto py-8">

@@ -1,21 +1,36 @@
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
-import { redirect } from "next/navigation"
+"use client"
+
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import Image from "next/image"
+import { getSupabaseClient } from "@/lib/supabase/supabase-client"
 
-export default async function HomePage() {
-  const supabase = createServerComponentClient({ cookies })
+export default function HomePage() {
+  const router = useRouter()
+  const [isLoading, setIsLoading] = useState(true)
 
-  // Check if user is authenticated
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
+  useEffect(() => {
+    async function checkAuth() {
+      const supabase = getSupabaseClient()
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
 
-  // If authenticated, redirect to dashboard
-  if (session) {
-    redirect("/dashboard")
+      // If authenticated, redirect to dashboard
+      if (session) {
+        router.push("/dashboard")
+      } else {
+        setIsLoading(false)
+      }
+    }
+
+    checkAuth()
+  }, [router])
+
+  if (isLoading) {
+    return <div className="flex justify-center items-center min-h-screen">Loading...</div>
   }
 
   return (
@@ -112,29 +127,6 @@ export default async function HomePage() {
               <h3 className="text-xl font-bold">Trading Journal</h3>
               <p className="text-muted-foreground text-center">
                 Document your trades, thoughts, and lessons learned to improve your decision-making.
-              </p>
-            </div>
-            <div className="flex flex-col items-center space-y-2 p-6 bg-background rounded-lg shadow-sm">
-              <div className="p-2 bg-primary/10 rounded-full">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="h-6 w-6 text-primary"
-                >
-                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
-                  <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
-                </svg>
-              </div>
-              <h3 className="text-xl font-bold">Trading Playbook</h3>
-              <p className="text-muted-foreground text-center">
-                Create and refine your trading strategies with a comprehensive playbook.
               </p>
             </div>
           </div>

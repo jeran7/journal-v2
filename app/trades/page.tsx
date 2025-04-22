@@ -1,14 +1,14 @@
-import { Suspense } from "react"
+"use client"
+
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { TradesList } from "@/components/trades/trades-list"
 import { GlassCard } from "@/components/ui/glass-card"
-import { serverTradesService } from "@/lib/supabase/trades-service"
+import { getSupabaseClient } from "@/lib/supabase/supabase-client"
 import { formatCurrency, formatPercentage } from "@/lib/utils"
 
-export const dynamic = "force-dynamic"
-
-export default async function TradesPage() {
+export default function TradesPage() {
   return (
     <div className="container mx-auto py-8">
       <div className="flex justify-between items-center mb-6">
@@ -18,21 +18,79 @@ export default async function TradesPage() {
         </Button>
       </div>
 
-      <Suspense fallback={<TradeStatsSkeleton />}>
-        <TradeStats />
-      </Suspense>
+      <TradeStats />
 
       <GlassCard className="mt-6 p-6">
-        <Suspense fallback={<div className="p-8 text-center">Loading trades...</div>}>
-          <TradesList />
-        </Suspense>
+        <TradesList />
       </GlassCard>
     </div>
   )
 }
 
-async function TradeStats() {
-  const stats = await serverTradesService.getTradeStatistics()
+function TradeStats() {
+  const [stats, setStats] = useState({
+    winRate: 0,
+    winningTrades: 0,
+    losingTrades: 0,
+    totalPnL: 0,
+    totalTrades: 0,
+    averagePnL: 0,
+    profitFactor: 1,
+    averageWin: 0,
+    averageLoss: 0,
+  })
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    async function fetchStats() {
+      try {
+        const supabase = getSupabaseClient()
+
+        // Get all trades
+        const { data: trades, error } = await supabase.from("trades").select("*").eq("status", "closed")
+
+        if (error) throw error
+
+        if (!trades || trades.length === 0) {
+          setIsLoading(false)
+          return
+        }
+
+        // Calculate statistics
+        const winningTrades = trades.filter((trade) => (trade.pnl_absolute || 0) > 0)
+        const losingTrades = trades.filter((trade) => (trade.pnl_absolute || 0) < 0)
+
+        const totalPnL = trades.reduce((sum, trade) => sum + (trade.pnl_absolute || 0), 0)
+        const totalWinnings = winningTrades.reduce((sum, trade) => sum + (trade.pnl_absolute || 0), 0)
+        const totalLosses = Math.abs(losingTrades.reduce((sum, trade) => sum + (trade.pnl_absolute || 0), 0))
+
+        const averageWin = winningTrades.length > 0 ? totalWinnings / winningTrades.length : 0
+        const averageLoss = losingTrades.length > 0 ? totalLosses / losingTrades.length : 0
+
+        setStats({
+          winRate: trades.length > 0 ? (winningTrades.length / trades.length) * 100 : 0,
+          winningTrades: winningTrades.length,
+          losingTrades: losingTrades.length,
+          totalPnL,
+          totalTrades: trades.length,
+          averagePnL: trades.length > 0 ? totalPnL / trades.length : 0,
+          profitFactor: totalLosses > 0 ? totalWinnings / totalLosses : totalWinnings > 0 ? 999 : 1,
+          averageWin,
+          averageLoss,
+        })
+      } catch (error) {
+        console.error("Error fetching trade statistics:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchStats()
+  }, [])
+
+  if (isLoading) {
+    return <TradeStatsSkeleton />
+  }
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
